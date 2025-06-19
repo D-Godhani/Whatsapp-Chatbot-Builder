@@ -15,28 +15,66 @@ async function getProjectCredentials(projectId) {
   };
 }
 
-
-export async function sendWhatsappMessage({ to, text, projectId }) {
+/**
+ * Send a WhatsApp message.
+ * Automatically supports text OR button-based messages.
+ *
+ * @param {Object} params
+ * @param {string} params.to - Receiver WhatsApp number in international format
+ * @param {string} params.text - The main message body
+ * @param {string} params.projectId - Project ID to fetch credentials
+ * @param {string[] | Object[]} [params.buttons] - Optional array of button labels (max 3) or formatted button objects
+ */
+export async function sendWhatsappMessage({ to, text, projectId, buttons = [] }) {
   try {
     const { phoneNumberId, accessToken } = await getProjectCredentials(projectId);
 
     const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
-    
-    const response = await axios.post(
-      url,
-      {
+
+    let payload;
+
+    if (buttons.length > 0) {
+      const formattedButtons =
+        typeof buttons[0] === "string"
+          ? buttons.slice(0, 3).map((label, index) => ({
+              type: "reply",
+              reply: {
+                id: `btn_${index + 1}_${label.toLowerCase().replace(/\s+/g, "_")}`,
+                title: label,
+              },
+            }))
+          : buttons.slice(0, 3); // already formatted
+
+      payload = {
         messaging_product: "whatsapp",
-        to: to,
+        to,
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: {
+            text: text,
+          },
+          action: {
+            buttons: formattedButtons,
+          },
+        },
+      };
+    } else {
+      // ✅ Default to plain text message
+      payload = {
+        messaging_product: "whatsapp",
+        to,
         type: "text",
         text: { body: text },
+      };
+    }
+
+    const response = await axios.post(url, payload, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
       },
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    });
 
     console.log("Message sent successfully:", response.data);
     return response.data;

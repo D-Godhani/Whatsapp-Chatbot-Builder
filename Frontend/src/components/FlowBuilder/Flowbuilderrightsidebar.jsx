@@ -1,5 +1,12 @@
 import React from "react";
-import { Save, RotateCw, Eye, Download } from "lucide-react";
+import {
+  Save,
+  RotateCw,
+  Eye,
+  Download,
+  Send,
+  SendHorizonal,
+} from "lucide-react";
 
 export default function FlowBuilderRightSidebar({ onReset, onSave }) {
   const handleSave = () => {
@@ -16,6 +23,10 @@ export default function FlowBuilderRightSidebar({ onReset, onSave }) {
 
   const handleExport = () => {
     console.log("Export button clicked");
+  };
+
+  const handlePublish = () => {
+    console.log("Publish button clicked");
   };
 
   return (
@@ -44,6 +55,11 @@ export default function FlowBuilderRightSidebar({ onReset, onSave }) {
           label: "Export",
           icon: <Download className="w-5 h-5" />,
           onClick: handleExport,
+        },
+        {
+          label: "Publish",
+          icon: <SendHorizonal className="w-5 h-5" />,
+          onClick: handlePublish,
         },
       ].map((btn, idx) => (
         <div key={idx} className="flex flex-col items-center mb-4 w-full">

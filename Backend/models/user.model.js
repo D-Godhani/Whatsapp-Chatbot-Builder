@@ -19,14 +19,22 @@ const userSchema = new mongoose.Schema(
     },
     phoneNumber: {
       type: Number,
-      required: true,
+      required: false,
     },
     password: {
       type: String,
       select: false,
-      required: true,
+      required: false,
     },
     isAdmin: { type: Boolean, default: false },
+    googleAuth: {
+      type: Boolean,
+      default: false,
+    },
+    googleId: {
+      type: String,
+      required: false,
+    },
   },
   { timestamps: true }
 );

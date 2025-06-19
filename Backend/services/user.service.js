@@ -30,7 +30,7 @@ export const createUser = async ({
 
 export const loginUser = async ({ email, password, isAdmin }) => {
   if (!email || !password) {
-    throw new Error("Something is missing");
+    throw new Error("All fields are required");
   }
 
   const user = await userModel.findOne({ email }).select("+password");
@@ -44,12 +44,14 @@ export const loginUser = async ({ email, password, isAdmin }) => {
     throw new Error("Invalid Credentials");
   }
 
-  if (isAdmin !== user.isAdmin) {
+  const parsedIsAdmin = isAdmin === 'true' || isAdmin === true;
+  if (parsedIsAdmin !== user.isAdmin) {
     throw new Error("Account doesn't exist with current role.");
   }
 
   return user;
 };
+
 export const getAllUsers = async ({ userId }) => {
   const users = await userModel.find({
     _id: { $ne: userId },

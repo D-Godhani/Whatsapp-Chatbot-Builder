@@ -7,13 +7,13 @@ import {
   addEdge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import CustomEdge from "../Edges/Customedge";
 import nodeTypes from "../Nodes/NodeTypes";
 import BaseNodeDialog from "../Nodes/Nodedialog";
 import EdgeDialog from "../Edges/Edgedialog";
 import { X } from "lucide-react";
-
+import { useVariableContext } from "../../context/Variable.context";
 const edgeTypes = {
   testingEdge: CustomEdge,
 };
@@ -25,7 +25,7 @@ function FlowCanvas({ nodes, setNodes, edges, setEdges }) {
   const [showLabelPrompt, setShowLabelPrompt] = useState(false);
   const [labelChoice, setLabelChoice] = useState("true");
   const [availableLabels, setAvailableLabels] = useState([]);
-
+  const { syncVariablesFromNodes } = useVariableContext();
   const normalizedEdges = edges.map((edge) => ({
     ...edge,
     type: "testingEdge",
@@ -49,7 +49,7 @@ function FlowCanvas({ nodes, setNodes, edges, setEdges }) {
     (params) => {
       const sourceNode = nodes.find((node) => node.id === params.source);
 
-      if (sourceNode?.type === "condition") {
+      if (sourceNode?.type === "keywordMatch") {
         const usedLabels = edges
           .filter((e) => e.source === params.source)
           .map((e) => (e.label || e.data?.label)?.toLowerCase());
@@ -172,7 +172,9 @@ function FlowCanvas({ nodes, setNodes, edges, setEdges }) {
     );
     handleCloseEdgeDialog();
   };
-
+  useEffect(() => {
+    syncVariablesFromNodes(nodes);
+  }, [nodes]);
   return (
     <div className="h-[100vh] w-[90vw] bg-slate-300 relative">
       <ReactFlow
@@ -192,9 +194,6 @@ function FlowCanvas({ nodes, setNodes, edges, setEdges }) {
         onNodeClick={handleNodeClick}
         onEdgeClick={handleEdgeClick}
         fitView
-        panOnDrag={false}
-        panOnScroll={true}
-        selectionOnDrag={true}
       >
         <Background color="#000" gap="15" />
         <Controls />

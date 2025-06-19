@@ -1,21 +1,13 @@
 import React from "react";
 import { Zap, ListChecks, CheckCircle2 } from "lucide-react";
 import nodeTypes from "../Nodes/NodeTypes";
-import { getNodeLabel } from "./HelperFunctions";
-
+import { getNodeLabel } from "../Nodes/node-config";
+import {
+  TriggerNodes,
+  ConditionNodes,
+  ActionNodes,
+} from "../Nodes/node-config";
 export default function FlowBuilderLeftSidebar({ onAddNode }) {
-  const TriggerNodes = Object.keys(nodeTypes).filter((key) =>
-    key.startsWith("start")
-  );
-
-  const ConditionNodes = Object.keys(nodeTypes).filter(
-    (key) => key.startsWith("condition") || key.startsWith("end")
-  );
-
-  const ActionNodes = Object.keys(nodeTypes).filter(
-    (key) => key.startsWith("message") || key.startsWith("buttons")
-  );
-
   return (
     <div className="absolute top-0 left-0 h-full w-20 z-10 bg-white shadow-md p-2 transition-all duration-300 flex flex-col items-center">
       <div className="w-full flex justify-center items-center mb-4">

@@ -9,6 +9,7 @@ function BaseNode({
   bgColor = "bg-sky-200",
   data,
   hideRightHandle,
+  hideLeftHandle,
 }) {
   const selectedRing = data?.isSelected ? "ring-4 ring-black" : "";
 
@@ -17,11 +18,13 @@ function BaseNode({
       <div
         className={`relative flex items-center justify-center ${bgColor} border-2 border-black rounded-full w-[60px] h-[60px] shadow-md transition-all duration-200 ${selectedRing}`}
       >
-        <Handle
-          type="target"
-          position={Position.Left}
-          className="!w-2 !h-2 !bg-black absolute"
-        />
+        {!hideLeftHandle && (
+          <Handle
+            type="target"
+            position={Position.Left}
+            className="!w-2 !h-2 !bg-black absolute"
+          />
+        )}
         {!hideRightHandle && (
           <Handle
             type="source"
@@ -61,13 +64,15 @@ import {
   Zap,
   UserRoundPen,
   SquareMenuIcon,
+  LogIn,
 } from "lucide-react";
 
 export const TriggerUserMessage = (props) => (
   <BaseNode
-    icon={<UserRoundPen size={24} />}
+    icon={<LogIn size={24} />}
     label="User Message"
     bgColor="bg-green-200"
+    hideLeftHandle={true}
     {...props}
   />
 );
@@ -172,10 +177,10 @@ export const ControlEndFlow = (props) => (
   />
 );
 
-export const InputAsk = (props) => (
+export const ActionAskaQuestion = (props) => (
   <BaseNode
     icon={<SquarePen size={24} />}
-    label="Ask Input"
+    label="Ask a Question"
     bgColor="bg-orange-200"
     {...props}
   />
@@ -222,7 +227,7 @@ export default {
   ActionApiCall,
   ControlGoto,
   ControlEndFlow,
-  //   InputAsk,
+  ActionAskaQuestion,
   //   AiGpt,
   //   DebugLog,
 };

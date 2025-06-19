@@ -1,23 +1,28 @@
-import {useState, useRef, useCallback, useEffect} from "react";
-import {toast, ToastContainer} from "react-toastify";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import FlowCanvas from "./Flowcanvas";
-import {useParams} from "react-router-dom";
+import { useParams } from "react-router-dom";
 import FlowBuilderLeftSidebar from "./Flowbuilderleftsidebar";
 import FlowBuilderRightSidebar from "./Flowbuilderrightsidebar";
+import { validateFlow } from "./utils/FlowValidation";
 
-import {updateProjectFlow, getProjectById} from "../../services/projectService";
+import {
+  updateProjectFlow,
+  getProjectById,
+} from "../../services/projectService";
 
 import {
   getNodeLabel,
   getNodeCategory,
   getInitialFields,
-} from "./HelperFunctions";
+} from "../Nodes/node-config";
+import { VariableProvider } from "../../context/Variable.context";
 
 function FlowBuilder() {
-  const {id: projectId} = useParams();
-
+  const { id: projectId } = useParams();
+  const [flowErrors, setFlowErrors] = useState([]);
   const reactFlowWrapper = useRef(null);
 
   const [nodes, setNodes] = useState([]);
@@ -26,6 +31,7 @@ function FlowBuilder() {
   const onReset = useCallback(() => {
     setNodes([]);
     setEdges([]);
+    setFlowErrors([]);
     saveFlow();
   }, [setNodes, setEdges]);
 
@@ -71,7 +77,6 @@ function FlowBuilder() {
             // "trigger" | "action" | "condition"
             fields: getInitialFields(type), // Optional: used for form fields in dialog
             isSelected: false, // optional UI state
-            waitForUserReply: false,
           },
         },
       };
@@ -94,19 +99,26 @@ function FlowBuilder() {
         toast.error("Failed to load flow.");
       }
     };
-
     fetchProjectFlow();
   }, [projectId]);
 
   const saveFlow = async () => {
-    const fileTree = {nodes, edges};
-    try {
-      const data = await updateProjectFlow(projectId, fileTree);
-      console.log("Flow updated:", data);
-      toast.success("Flow saved successfully!");
-    } catch (error) {
-      console.error(error);
-      toast.error(error.message || "Failed to save flow");
+    const { isValid, errors } = validateFlow(nodes, edges);
+    const fileTree = { nodes, edges };
+
+    if (isValid) {
+      try {
+        const data = await updateProjectFlow(projectId, fileTree);
+        console.log("Flow updated:", data);
+        toast.success("Flow saved successfully!");
+      } catch (error) {
+        console.error(error);
+        toast.error(error.message || "Failed to save flow");
+      }
+    } else {
+      setFlowErrors(errors);
+      errors.forEach((err) => toast.error(err)); // Show each error clearly
+      // Optional: setFlowErrors(errors); // only if you're displaying them somewhere
     }
   };
 
@@ -114,8 +126,8 @@ function FlowBuilder() {
     <div className="relative h-screen w-full bg-gray-100 overflow-hidden">
       <ToastContainer
         position="top-center"
-        autoClose={2000}
-        pauseOnHover={false}
+        autoClose={5000}
+        pauseOnHover={true}
       />
 
       <FlowBuilderLeftSidebar onAddNode={onAddNode} />
@@ -130,12 +142,14 @@ function FlowBuilder() {
           bottom: 0,
         }}
       >
-        <FlowCanvas
-          nodes={nodes}
-          setNodes={setNodes}
-          edges={edges}
-          setEdges={setEdges}
-        />
+        <VariableProvider>
+          <FlowCanvas
+            nodes={nodes}
+            setNodes={setNodes}
+            edges={edges}
+            setEdges={setEdges}
+          />
+        </VariableProvider>
       </div>
 
       <FlowBuilderRightSidebar onReset={onReset} onSave={saveFlow} />
