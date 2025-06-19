@@ -15,6 +15,24 @@ async function getProjectCredentials(projectId) {
   };
 }
 
+// Helper to call WhatsApp API
+async function callWhatsappAPI(phoneNumberId, accessToken, payload) {
+    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
+    try {
+        const response = await axios.post(url, payload, {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+            },
+        });
+        console.log("WhatsApp API call successful:", response.data);
+        return response.data;
+    } catch (error) {
+        console.error("Error calling WhatsApp API:", error.response ? error.response.data : error.message);
+        throw error;
+    }
+}
+
 /**
  * Send a WhatsApp message.
  * Automatically supports text OR button-based messages.

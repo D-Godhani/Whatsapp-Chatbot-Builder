@@ -214,7 +214,7 @@ export const removeUserFromProject = async ({
   userToRemove,
   requestedBy,
 }) => {
-  if (!isValidObjectId(projectId) || !isValidObjectId(userIdToRemove)) {
+  if (!isValidObjectId(projectId) || !isValidObjectId(userToRemove)) {
     throw new Error("Invalid IDs");
   }
   const project = await projectModel.findOne({ _id: projectId });

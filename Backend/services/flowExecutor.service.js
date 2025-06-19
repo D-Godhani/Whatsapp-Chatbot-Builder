@@ -1,13 +1,22 @@
 import projectModel from "../models/project.model.js";
 import redisClient from "./redis.service.js";
-<<<<<<< HEAD
-import generateReply from "./gptService.js";
-import {sendWhatsappMessage, sendWhatsappMediaMessage} from "./whatsapp.service.js";
-import axios from "axios"; // <-- ADD AXIOS IMPORT
+import axios from "axios";
+import {
+  sendWhatsappTextMessage,
+  sendWhatsappButtonMessage,
+  sendWhatsappMediaMessage,
+} from "./whatsapp.service.js";
 
-// --- NEW FUNCTION: The Dynamic Action Handler ---
+// ====================================================================================
+// SECTION 1: ACTION HANDLER (For "Smart" Buttons with Embedded Actions)
+// ====================================================================================
+
+/**
+ * Handles button clicks that have a self-contained "action" payload.
+ * This is for stateless actions like fetching a specific document via API.
+ */
 export async function handleButtonAction({ projectId, senderWaPhoneNo, buttonId, fileTree }) {
-  // Find the button configuration within the entire flow
+  // Find the button's configuration within the entire flow
   let buttonConfig = null;
   for (const node of fileTree.nodes) {
     if (node.type === 'buttons' && Array.isArray(node.data?.properties?.buttons)) {
@@ -26,227 +35,64 @@ export async function handleButtonAction({ projectId, senderWaPhoneNo, buttonId,
 
   const action = buttonConfig.action;
 
-  // Execute the action based on its type
+  // ✅ Execute the action based on its type. This is highly scalable.
   if (action.type === 'FETCH_AND_SEND_MEDIA') {
-    try {
-      // 1. Prepare the API request
-      let url = action.request.url;
-      // Replace placeholders like {{sender.phone}}
-      url = url.replace(/{{sender\.phone}}/g, senderWaPhoneNo);
+    if (!action.request?.url || !action.responseMapping?.mediaUrlField) {
+        console.error(`Incomplete configuration for FETCH_AND_SEND_MEDIA action on button ${buttonId}`);
+        return;
+    }
 
+    try {
+      let url = action.request.url.replace(/{{sender\.phone}}/g, senderWaPhoneNo);
       console.log(`Executing API call for button ${buttonId}: GET ${url}`);
       
-      // 2. Make the API call
       const response = await axios.get(url);
       const responseData = response.data;
 
-      // 3. Map the response to media properties
       const mediaUrl = responseData[action.responseMapping.mediaUrlField];
-      const caption = responseData[action.responseMapping.captionField] || '';
-      
       if (!mediaUrl) {
           throw new Error(`Media URL field '${action.responseMapping.mediaUrlField}' not found in API response.`);
       }
+      const caption = responseData[action.responseMapping.captionField] || '';
 
-      // 4. Send the media file to the user
-      // For now, we assume PDF is 'document'. A more advanced version could get this from the response too.
       await sendWhatsappMediaMessage({
         to: senderWaPhoneNo,
         mediaUrl: mediaUrl,
-        mediaType: 'document',
+        mediaType: 'document', // Future enhancement: get this from config or response
         caption: caption,
         projectId: projectId,
       });
 
     } catch (error) {
       console.error(`Error during FETCH_AND_SEND_MEDIA action for button ${buttonId}:`, error.message);
-      // Optionally, send an error message back to the user
-      await sendWhatsappTextMessage({ to: senderWaPhoneNo, text: "Sorry, we couldn't fetch your document at this time. Please try again later.", projectId });
+      await sendWhatsappTextMessage({ to: senderWaPhoneNo, text: "Sorry, we couldn't fetch your document at this time.", projectId });
     }
   }
-  // Future-proof: Add else-if for other action types like 'SHOW_IN_TEXT'
-=======
-import { sendWhatsappMessage } from "./whatsapp.service.js";
-
-// Normalize button text
-function normalizeLabel(label) {
-  return label.trim().toLowerCase().replace(/\s+/g, "_");
+  // ✅ You can add other action types here in the future
+  // else if (action.type === 'SHOW_IN_TEXT') { ... }
 }
 
-// Find next node based on edge label
-function findNextNode(sourceNodeId, edges, conditionLabel = null) {
-  if (conditionLabel) {
-    return (
-      edges.find((e) => e.source === sourceNodeId && e.label === conditionLabel)?.target || null
-    );
-  }
-  return edges.find((e) => e.source === sourceNodeId)?.target || null;
-}
 
-// Get project fileTree from DB
-async function getProjectFileTree(projectId) {
-  try {
-    const project = await projectModel.findById(projectId).select("fileTree");
-    return project?.fileTree || null;
-  } catch (error) {
-    console.error("Error fetching project fileTree:", error);
-    return null;
-  }
->>>>>>> 98b746c745a63444892ad0e78b10624d9f2dd7a4
-}
+// ====================================================================================
+// SECTION 2: CONVERSATIONAL FLOW HANDLER (For Navigational Flows)
+// ====================================================================================
 
-export async function processMessage({
-  projectId,
-  senderWaPhoneNo,
-  messageText,
-<<<<<<< HEAD
-  fileTree,
-}) {
-  
-=======
-  buttonReplyId,
-}) {
+/**
+ * Processes standard text-based messages or simple navigational button clicks.
+ * Manages the user's state in the conversation flow using Redis.
+ */
+export async function processMessage({ projectId, senderWaPhoneNo, messageText, fileTree, buttonReplyId }) {
   const userStateKey = `flow-state:${senderWaPhoneNo}:${projectId}`;
-  const fileTree = await getProjectFileTree(projectId);
->>>>>>> 98b746c745a63444892ad0e78b10624d9f2dd7a4
-  if (!fileTree) return;
+  
+  const tree = fileTree || await getProjectFileTree(projectId);
+  if (!tree) return;
 
-  const cleanedInput = (buttonReplyId || messageText || "").trim().toLowerCase();
-  const normalizedInput = normalizeLabel(cleanedInput);
-
-  // 🔘 1. Handle awaiting button response
-  let awaiting;
-  try {
-    const awaitingStr = await redisClient.get(`${userStateKey}:awaitingButtonResponse`);
-    if (awaitingStr) awaiting = JSON.parse(awaitingStr);
-  } catch (error) {
-    console.error("Redis read error:", error);
-  }
-
-  if (awaiting) {
-    const { nodeId, buttons } = awaiting;
-
-    const matchedLabel = buttons.find((btn, index) => {
-      const idMatch = `btn_${index + 1}_${normalizeLabel(btn)}`;
-      return (
-        normalizedInput === normalizeLabel(btn) ||
-        normalizedInput === idMatch
-      );
-    });
-
-    if (matchedLabel) {
-      const nextNodeId = findNextNode(nodeId, fileTree.edges, normalizeLabel(matchedLabel));
-      if (nextNodeId) {
-        await redisClient.set(userStateKey, nextNodeId, "EX", 3600);
-        await redisClient.del(`${userStateKey}:awaitingButtonResponse`);
-        await redisClient.del(`${userStateKey}:buttonInvalidCount`);
-        await executeNode(nextNodeId, {
-          projectId,
-          senderWaPhoneNo,
-          messageText,
-          fileTree,
-          userStateKey,
-        });
-        return;
-      }
-    } else {
-      // Handle invalid response
-      const invalidCountKey = `${userStateKey}:buttonInvalidCount`;
-      let invalidCount = 0;
-      try {
-        const countStr = await redisClient.get(invalidCountKey);
-        invalidCount = countStr ? parseInt(countStr, 10) : 0;
-      } catch (err) {
-        console.error("Error reading invalid count from Redis:", err);
-      }
-
-      invalidCount += 1;
-
-      if (invalidCount >= 3) {
-        console.warn(`User ${senderWaPhoneNo} exceeded invalid attempts. Ending flow.`);
-
-        // Notify the user before ending
-        await sendWhatsappMessage({
-          to: senderWaPhoneNo,
-          text: `You've entered too many invalid responses (3/3).\nEnding this session. Please try again later if needed.`,
-          projectId,
-        });
-
-        // Clean up
-        await redisClient.del(userStateKey);
-        await redisClient.del(`${userStateKey}:awaitingButtonResponse`);
-        await redisClient.del(invalidCountKey);
-
-        // Trigger end node if present
-        const endNode = fileTree.nodes.find((n) => n.type === "end");
-        if (endNode) {
-          await executeNode(endNode.id, {
-            projectId,
-            senderWaPhoneNo,
-            messageText,
-            fileTree,
-            userStateKey,
-          });
-        }
-
-        return;
-      }
-
-      await redisClient.set(invalidCountKey, invalidCount.toString(), "EX", 3600);
-
-      await sendWhatsappMessage({
-        to: senderWaPhoneNo,
-        text: `Invalid response. Please choose one of the buttons. (${invalidCount}/3 attempts used)`,
-        projectId,
-      });
-      return;
-    }
-  }
-
-  // 🔁 2. Global button check
-  for (const node of fileTree.nodes) {
-    if (node.type === "buttons") {
-      const buttons = node.data?.properties?.buttons || [];
-
-      const matchedLabel = buttons.find((btn, index) => {
-        const idMatch = `btn_${index + 1}_${normalizeLabel(btn)}`;
-        return (
-          normalizedInput === normalizeLabel(btn) ||
-          normalizedInput === idMatch
-        );
-      });
-
-      if (matchedLabel) {
-        const nextNodeId = findNextNode(node.id, fileTree.edges, normalizeLabel(matchedLabel));
-        if (nextNodeId) {
-          await redisClient.set(userStateKey, nextNodeId, "EX", 3600);
-          await redisClient.del(`${userStateKey}:awaitingButtonResponse`);
-          await redisClient.del(`${userStateKey}:buttonInvalidCount`);
-          await executeNode(nextNodeId, {
-            projectId,
-            senderWaPhoneNo,
-            messageText,
-            fileTree,
-            userStateKey,
-          });
-          return;
-        }
-      }
-    }
-  }
-
-  // ▶️ 3. Continue or start normal flow
-  let currentNodeId = null;
-  try {
-    currentNodeId = await redisClient.get(userStateKey);
-  } catch (err) {
-    console.error("Redis error while getting currentNodeId:", err);
-  }
-
+  // Get the user's current position in the flow, or find the start node.
+  let currentNodeId = await redisClient.get(userStateKey);
   if (!currentNodeId) {
-    const startNode = fileTree.nodes.find((node) => node.type === "start");
+    const startNode = tree.nodes.find((node) => node.type === "start");
     if (!startNode) {
-      console.error("No start node found.");
+      console.error(`No start node found for project ${projectId}.`);
       return;
     }
     currentNodeId = startNode.id;
@@ -256,15 +102,19 @@ export async function processMessage({
     projectId,
     senderWaPhoneNo,
     messageText,
-    fileTree,
+    fileTree: tree,
     userStateKey,
+    buttonReplyId,
   });
 }
 
-// Executes a node in the flow
+/**
+ * The core engine that executes a single node and decides where to go next.
+ */
 async function executeNode(nodeId, context) {
-  const { fileTree, userStateKey } = context;
+  const { fileTree, userStateKey, projectId, senderWaPhoneNo, messageText, buttonReplyId } = context;
   const node = fileTree.nodes.find((n) => n.id === nodeId);
+
   if (!node) {
     console.error(`Node with ID ${nodeId} not found.`);
     await redisClient.del(userStateKey);
@@ -272,16 +122,6 @@ async function executeNode(nodeId, context) {
   }
 
   console.log(`Executing node ${node.id} of type ${node.type}`);
-
-  const quickReply = node.data?.properties?.quickReply;
-  if (quickReply) {
-    await sendWhatsappMessage({
-      to: context.senderWaPhoneNo,
-      text: quickReply,
-      projectId: context.projectId,
-    });
-  }
-
   let nextNodeId = null;
 
   switch (node.type) {
@@ -290,87 +130,68 @@ async function executeNode(nodeId, context) {
       break;
 
     case "message":
-      const message = node.data?.properties?.message || "Default message";
-      await sendWhatsappMessage({
-        to: context.senderWaPhoneNo,
-        text: message,
-        projectId: context.projectId,
-      });
+      const message = node.data?.properties?.message || "Default message text";
+      await sendWhatsappTextMessage({ to: senderWaPhoneNo, text: message, projectId });
       nextNodeId = findNextNode(node.id, fileTree.edges);
       break;
 
-    case "keywordMatch":
-      const keywords = (node.data?.properties?.keywords || "")
-        .split(",")
-        .map((k) => k.trim().toLowerCase());
-      const matches = keywords.some((k) =>
-        context.messageText.toLowerCase().includes(k)
-      );
-      nextNodeId = findNextNode(
-        node.id,
-        fileTree.edges,
-        matches ? "true" : "false"
-      );
+    case "condition":
+      const keywords = (node.data?.properties?.keywords || "").split(",").map((k) => k.trim().toLowerCase());
+      const matches = messageText && keywords.some((k) => messageText.toLowerCase().includes(k));
+      nextNodeId = findNextNode(node.id, fileTree.edges, matches ? "true" : "false");
       break;
 
     case "buttons":
-      const buttonText = node.data?.properties?.message || "Choose an option:";
+      const buttonText = node.data?.properties?.text || "Please choose an option:";
       const buttons = node.data?.properties?.buttons || [];
+      await sendWhatsappButtonMessage({ to: senderWaPhoneNo, text: buttonText, buttons, projectId });
+      // ✅ For navigational buttons, we simply wait. The user's reply (button click)
+      // will be processed by the webhook as new input in the next turn. We don't need
+      // complex 'awaitingResponse' flags.
+      return; // Stop execution here and wait for user input.
 
-      const formattedButtons = buttons.map((btn, index) => ({
-        type: "reply",
-        reply: {
-          id: `btn_${index + 1}_${normalizeLabel(btn)}`,
-          title: btn,
-        },
-      }));
-
-      await sendWhatsappMessage({
-        to: context.senderWaPhoneNo,
-        text: buttonText,
-        projectId: context.projectId,
-        buttons: formattedButtons,
-      });
-
-      await redisClient.set(
-        `${userStateKey}:awaitingButtonResponse`,
-        JSON.stringify({
-          nodeId: node.id,
-          buttons: buttons.map((btn) => btn.trim().toLowerCase()),
-        }),
-        "EX",
-        3600
-      );
-      await redisClient.del(`${userStateKey}:buttonInvalidCount`);
-      return;
+    case "media":
+        const { mediaUrl, mediaType, caption } = node.data?.properties;
+        await sendWhatsappMediaMessage({ to: senderWaPhoneNo, mediaUrl, mediaType, caption, projectId });
+        nextNodeId = findNextNode(node.id, fileTree.edges);
+        break;
 
     case "end":
-      console.log("Flow ended by end node.");
+      console.log("Flow ended by 'end' node.");
       await redisClient.del(userStateKey);
       return;
 
     default:
-      console.warn(`Unsupported node type: ${node.type}`);
-      await sendWhatsappMessage({
-        to: context.senderWaPhoneNo,
-        text: "Something went wrong. Please try again later.",
-        projectId: context.projectId,
-      });
-      await redisClient.del(userStateKey);
+      console.warn(`Unsupported node type: ${node.type} for node ${node.id}`);
+      await redisClient.del(userStateKey); // End flow on unknown node to prevent errors.
       return;
   }
 
-  const waitForReply = node.data?.properties?.waitForUserReply === true;
-
+  // --- After the switch, decide the next step ---
   if (nextNodeId) {
-    await redisClient.set(userStateKey, nextNodeId, "EX", 3600);
+    await redisClient.set(userStateKey, nextNodeId, "EX", 3600); // Set next state
+    
+    // ✅ Auto-continue the flow if the current node doesn't require user input.
+    const waitForReply = node.data?.properties?.waitForUserReply === true;
     if (!waitForReply) {
-      await executeNode(nextNodeId, context);
+      await executeNode(nextNodeId, context); // Recursively call for the next node.
     } else {
       console.log(`Waiting for user reply before continuing from node ${node.id}`);
     }
   } else {
-    console.log(`Flow ended. No next node from ${node.id}.`);
+    // If there's no next node, the flow naturally ends.
+    console.log(`Flow ended for user ${senderWaPhoneNo}. No next node from ${node.id}.`);
     await redisClient.del(userStateKey);
   }
+}
+
+/**
+ * Helper function to find the target of an edge from a source node.
+ * Supports labeled edges for conditional branching.
+ */
+function findNextNode(sourceNodeId, edges, conditionLabel = null) {
+  const edge = conditionLabel
+    ? edges.find((e) => e.source === sourceNodeId && e.label === conditionLabel)
+    : edges.find((e) => e.source === sourceNodeId && !e.label); // Default to unlabeled edge
+  return edge?.target || null;
 }
