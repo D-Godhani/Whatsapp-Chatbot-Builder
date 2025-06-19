@@ -48,3 +48,19 @@ export async function sendWhatsappMessage({ to, text, projectId }) {
     throw error;
   }
 }
+
+export async function sendWhatsappMediaMessage({ to, mediaUrl, mediaType, caption, projectId }) {
+    const { phoneNumberId, accessToken } = await getProjectCredentials(projectId);
+
+    const payload = {
+        messaging_product: "whatsapp",
+        to: to,
+        type: mediaType,
+        [mediaType]: {
+            link: mediaUrl,
+            caption: caption,
+        },
+    };
+
+    return callWhatsappAPI(phoneNumberId, accessToken, payload);
+}

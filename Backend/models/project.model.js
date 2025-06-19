@@ -14,6 +14,7 @@ const nodeSchema = new mongoose.Schema(
         // "delay",
         // "random",
         // "goto",
+        "api",
         "end",
       ],
       required: true,

@@ -1,5 +1,5 @@
 import projectModel from "../models/project.model.js";
-import {processMessage} from "../services/flowExecutor.service.js";
+import {processMessage, handleButtonAction} from "../services/flowExecutor.service.js";
 
 // Webhook verification (GET /webhook)
 export const verifyWebhook = (req, res) => {
@@ -31,8 +31,8 @@ export const handleIncomingMessage = async (req, res) => {
     const phoneNumberId = change?.metadata?.phone_number_id;
     const message = change?.messages?.[0];
 
-    if (!phoneNumberId || !message || message.type !== "text") {
-      return res.sendStatus(200); // Ignore unsupported message types
+    if (!phoneNumberId || !message) {
+      return res.sendStatus(200);
     }
 
     const project = await projectModel.findOne({
@@ -46,13 +46,21 @@ export const handleIncomingMessage = async (req, res) => {
     }
 
     const from = message.from;
-    const text = message.text.body;
+    const projectId = project._id;
+    const fileTree = project.fileTree;
 
-    await processMessage({
-      projectId: project._id,
-      senderWaPhoneNo: from,
-      messageText: text,
-    });
+     if (message.type === "text") {
+      const text = message.text.body;
+      await processMessage({ projectId, senderWaPhoneNo: from, messageText: text, fileTree });
+
+    } else if (message.type === "interactive" && message.interactive?.type === "button_reply") {
+      const buttonId = message.interactive.button_reply.id;
+      // --- NEW LOGIC: Trigger the specific button action handler ---
+      await handleButtonAction({ projectId, senderWaPhoneNo: from, buttonId, fileTree });
+      // -----------------------------------------------------------
+    } else {
+      console.log(`Ignoring unsupported message type: ${message.type}`);
+    }
 
     res.sendStatus(200);
   } catch (err) {

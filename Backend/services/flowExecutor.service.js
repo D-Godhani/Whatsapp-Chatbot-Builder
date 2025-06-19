@@ -1,15 +1,79 @@
 import projectModel from "../models/project.model.js";
 import redisClient from "./redis.service.js";
 import generateReply from "./gptService.js";
-import {sendWhatsappMessage} from "./whatsapp.service.js";
+import {sendWhatsappMessage, sendWhatsappMediaMessage} from "./whatsapp.service.js";
+import axios from "axios"; // <-- ADD AXIOS IMPORT
+
+// --- NEW FUNCTION: The Dynamic Action Handler ---
+export async function handleButtonAction({ projectId, senderWaPhoneNo, buttonId, fileTree }) {
+  // Find the button configuration within the entire flow
+  let buttonConfig = null;
+  for (const node of fileTree.nodes) {
+    if (node.type === 'buttons' && Array.isArray(node.data?.properties?.buttons)) {
+      const foundButton = node.data.properties.buttons.find(b => b.id === buttonId);
+      if (foundButton) {
+        buttonConfig = foundButton;
+        break;
+      }
+    }
+  }
+
+  if (!buttonConfig || !buttonConfig.action) {
+    console.error(`No action configured for buttonId: ${buttonId} in project: ${projectId}`);
+    return;
+  }
+
+  const action = buttonConfig.action;
+
+  // Execute the action based on its type
+  if (action.type === 'FETCH_AND_SEND_MEDIA') {
+    try {
+      // 1. Prepare the API request
+      let url = action.request.url;
+      // Replace placeholders like {{sender.phone}}
+      url = url.replace(/{{sender\.phone}}/g, senderWaPhoneNo);
+
+      console.log(`Executing API call for button ${buttonId}: GET ${url}`);
+      
+      // 2. Make the API call
+      const response = await axios.get(url);
+      const responseData = response.data;
+
+      // 3. Map the response to media properties
+      const mediaUrl = responseData[action.responseMapping.mediaUrlField];
+      const caption = responseData[action.responseMapping.captionField] || '';
+      
+      if (!mediaUrl) {
+          throw new Error(`Media URL field '${action.responseMapping.mediaUrlField}' not found in API response.`);
+      }
+
+      // 4. Send the media file to the user
+      // For now, we assume PDF is 'document'. A more advanced version could get this from the response too.
+      await sendWhatsappMediaMessage({
+        to: senderWaPhoneNo,
+        mediaUrl: mediaUrl,
+        mediaType: 'document',
+        caption: caption,
+        projectId: projectId,
+      });
+
+    } catch (error) {
+      console.error(`Error during FETCH_AND_SEND_MEDIA action for button ${buttonId}:`, error.message);
+      // Optionally, send an error message back to the user
+      await sendWhatsappTextMessage({ to: senderWaPhoneNo, text: "Sorry, we couldn't fetch your document at this time. Please try again later.", projectId });
+    }
+  }
+  // Future-proof: Add else-if for other action types like 'SHOW_IN_TEXT'
+}
 
 // Main function called by the webhook controller
 export async function processMessage({
   projectId,
   senderWaPhoneNo,
   messageText,
+  fileTree,
 }) {
-  const fileTree = await getProjectFileTree(projectId);
+  
   if (!fileTree) return;
 
   const userStateKey = `flow-state:${senderWaPhoneNo}:${projectId}`;
