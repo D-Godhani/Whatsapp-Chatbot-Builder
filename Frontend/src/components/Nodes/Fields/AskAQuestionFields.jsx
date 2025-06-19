@@ -1,11 +1,11 @@
 import { BooleanField } from "./BooleanField";
 export function AskAQuestionFields({ formData, onChange }) {
-  const handleCheckboxChange = (e) => {
-    onChange(
-      "saveTheAnswerAsContactProperty",
-      e.target.checked ? "true" : "false"
-    );
-  };
+  // const handleCheckboxChange = (e) => {
+  //   onChange(
+  //     "saveTheAnswerAsContactProperty",
+  //     e.target.checked ? "true" : "false"
+  //   );
+  // };
 
   return (
     <div className="space-y-4">
@@ -50,7 +50,7 @@ export function AskAQuestionFields({ formData, onChange }) {
         />
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* <div className="flex items-center gap-2">
         <input
           id="save-answer"
           type="checkbox"
@@ -61,22 +61,18 @@ export function AskAQuestionFields({ formData, onChange }) {
         <label htmlFor="save-answer" className="text-sm">
           Save answer as contact property
         </label>
-      </div>
+      </div> */}
 
-      {formData.saveTheAnswerAsContactProperty === "true" && (
-        <div>
-          <label className="text-sm font-medium block mb-1">
-            Property Name
-          </label>
-          <input
-            type="text"
-            value={formData.propertyName || ""}
-            onChange={(e) => onChange("propertyName", e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            placeholder="e.g., user_email"
-          />
-        </div>
-      )}
+      <div>
+        <label className="text-sm font-medium block mb-1">Property Name</label>
+        <input
+          type="text"
+          value={formData.propertyName || ""}
+          onChange={(e) => onChange("propertyName", e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+          placeholder="e.g., user_email"
+        />
+      </div>
 
       <BooleanField
         formData={formData}

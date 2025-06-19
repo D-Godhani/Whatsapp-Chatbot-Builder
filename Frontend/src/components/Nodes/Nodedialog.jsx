@@ -15,7 +15,9 @@ function BaseNodeDialog({ node, onClose, onSave, onDelete }) {
     const existing = node.data?.properties || {};
 
     const filteredExisting = Object.fromEntries(
-      Object.entries(existing).filter(([key]) => key === "waitForUserReply")
+      Object.entries(existing).filter(
+        ([key]) => key !== "isSelected" && key !== "fields"
+      )
     );
     setFormData({ ...initialFields, ...filteredExisting });
   }, [node, nodeType]);
@@ -50,7 +52,7 @@ function BaseNodeDialog({ node, onClose, onSave, onDelete }) {
             onDelete(node.id);
             onClose();
           }}
-          className="absolute rounded-sm p-1 m-1 top-4 right-4 border-4 border-red- text-white bg-red-500 hover:bg-red-900"
+          className="absolute rounded-md p-1 m-1 top-4 right-4 border-2 border-black transition-all duration-300 text-white bg-red-500 hover:bg-red-900"
         >
           <Trash2 className="w-6 h-6" />
         </button>
@@ -66,13 +68,13 @@ function BaseNodeDialog({ node, onClose, onSave, onDelete }) {
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-300 rounded-md hover:bg-gray-400"
+            className="px-4 py-2 bg-red-500 rounded-md text-white hover:bg-red-800 transition-all duration-300"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-900 transition-all duration-300"
           >
             Save
           </button>

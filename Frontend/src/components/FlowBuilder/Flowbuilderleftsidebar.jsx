@@ -1,12 +1,12 @@
 import React from "react";
 import { Zap, ListChecks, CheckCircle2 } from "lucide-react";
 import nodeTypes from "../Nodes/NodeTypes";
-import { getNodeLabel } from "../Nodes/Node-config";
+import { getNodeLabel } from "../Nodes/node-config";
 import {
   TriggerNodes,
   ConditionNodes,
   ActionNodes,
-} from "../Nodes/Node-config";
+} from "../Nodes/node-config";
 export default function FlowBuilderLeftSidebar({ onAddNode }) {
   return (
     <div className="absolute top-0 left-0 h-full w-20 z-10 bg-white shadow-md p-2 transition-all duration-300 flex flex-col items-center">

@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { ArrayInput } from "./ArrayInput";
 import { DefaultField } from "./DefaultField";
 import { BooleanField } from "./BooleanField";
+
 const AuthFields = ({ authType, formData, onChange }) => {
   if (authType === "basic") {
     return (
@@ -78,6 +79,7 @@ export function ApiCallFields({ formData, onChange }) {
           <option value="GET">GET</option>
           <option value="POST">POST</option>
           <option value="PUT">PUT</option>
+          <option value="PATCH">PATCH</option>
           <option value="DELETE">DELETE</option>
         </select>
       </div>
@@ -148,12 +150,72 @@ export function ApiCallFields({ formData, onChange }) {
         )}
       />
 
-      <BooleanField
+      <DefaultField
         formData={formData}
         onChange={onChange}
-        fieldKey="waitForReply"
-        label="Wait for User Reply"
+        fieldKey="responseKey"
+        label="Response Key (optional)"
       />
+
+      {/* Response Type */}
+      <div className="mb-4">
+        <label className="text-sm font-medium block mb-1">Response Type</label>
+        <div className="flex flex-wrap gap-4 mt-1">
+          {["text", "media"].map((type) => (
+            <label
+              key={type}
+              className="flex items-center gap-1 text-sm cursor-pointer"
+            >
+              <input
+                type="radio"
+                checked={formData.responseType === type}
+                onChange={() => onChange("responseType", type)}
+              />
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Media Type & Options */}
+      {formData.responseType === "media" && (
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium block mb-1">Media Type</label>
+            <div className="flex flex-wrap gap-4 mt-1">
+              {["image", "document", "video", "audio", "sticker"].map(
+                (mediaType) => (
+                  <label
+                    key={mediaType}
+                    className="flex items-center gap-1 text-sm cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      checked={formData.mediaType === mediaType}
+                      onChange={() => onChange("mediaType", mediaType)}
+                    />
+                    {mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}
+                  </label>
+                )
+              )}
+            </div>
+          </div>
+
+          <DefaultField
+            formData={formData}
+            onChange={onChange}
+            fieldKey="filename"
+            label="Filename (optional)"
+          />
+
+          <DefaultField
+            formData={formData}
+            onChange={onChange}
+            fieldKey="caption"
+            label="Caption (optional)"
+          />
+        </div>
+      )}
     </>
   );
 }
