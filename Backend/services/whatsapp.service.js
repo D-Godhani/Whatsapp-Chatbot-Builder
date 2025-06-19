@@ -15,26 +15,28 @@ async function getProjectCredentials(projectId) {
   };
 }
 
-/**
- * Send a WhatsApp message.
- * Automatically supports text OR button-based messages.
- *
- * @param {Object} params
- * @param {string} params.to - Receiver WhatsApp number in international format
- * @param {string} params.text - The main message body
- * @param {string} params.projectId - Project ID to fetch credentials
- * @param {string[] | Object[]} [params.buttons] - Optional array of button labels (max 3) or formatted button objects
- */
-export async function sendWhatsappMessage({ to, text, projectId, buttons = [] }) {
+export async function sendWhatsappMessage({
+  to,
+  text,
+  buttons = [],
+  type = "text",
+  content = {},
+  projectId,
+}) {
   try {
     const { phoneNumberId, accessToken } = await getProjectCredentials(projectId);
 
     const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
 
-    let payload;
+    let payload = {
+      messaging_product: "whatsapp",
+      to,
+    };
 
-    // ✅ If buttons are provided, send interactive button message
-    if (buttons.length > 0) {
+    const finalText = text || content.text || "No message body";
+
+    // 🎯 1. Interactive Buttons
+    if (buttons.length > 0 && type === "text") {
       const formattedButtons =
         typeof buttons[0] === "string"
           ? buttons.slice(0, 3).map((label, index) => ({
@@ -44,32 +46,74 @@ export async function sendWhatsappMessage({ to, text, projectId, buttons = [] })
                 title: label,
               },
             }))
-          : buttons.slice(0, 3); // already formatted
+          : buttons.slice(0, 3); // Already formatted
 
-      payload = {
-        messaging_product: "whatsapp",
-        to,
-        type: "interactive",
-        interactive: {
-          type: "button",
-          body: {
-            text: text,
-          },
-          action: {
-            buttons: formattedButtons,
-          },
+      payload.type = "interactive";
+      payload.interactive = {
+        type: "button",
+        body: {
+          text: finalText,
         },
-      };
-    } else {
-      // ✅ Default to plain text message
-      payload = {
-        messaging_product: "whatsapp",
-        to,
-        type: "text",
-        text: { body: text },
+        action: {
+          buttons: formattedButtons,
+        },
       };
     }
 
+    // 📝 2. Plain Text Message
+    else if (type === "text") {
+      payload.type = "text";
+      payload.text = { body: finalText };
+    }
+
+    // 📎 3. Media Messages
+    else {
+      payload.type = type;
+
+      const mediaUrl = content.mediaUrl;
+      if (!mediaUrl) throw new Error("Missing mediaUrl for media message");
+
+      switch (type) {
+        case "image":
+          payload.image = {
+            link: mediaUrl,
+            caption: content.caption || "",
+          };
+          break;
+
+        case "document":
+          payload.document = {
+            link: mediaUrl,
+            filename: content.filename || "file.pdf",
+            caption: content.caption || "",
+          };
+          break;
+
+        case "video":
+          payload.video = {
+            link: mediaUrl,
+            caption: content.caption || "",
+          };
+          break;
+
+        case "audio":
+          payload.audio = {
+            link: mediaUrl,
+          };
+          break;
+
+        case "sticker":
+          payload.sticker = {
+            link: mediaUrl,
+          };
+          break;
+
+        default:
+          throw new Error(`Unsupported message type: ${type}`);
+      }
+    }
+
+    // 🚀 Send the message
     const response = await axios.post(url, payload, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -77,12 +121,12 @@ export async function sendWhatsappMessage({ to, text, projectId, buttons = [] })
       },
     });
 
-    console.log("Message sent successfully:", response.data);
+    console.log("✅ WhatsApp message sent successfully:", response.data);
     return response.data;
   } catch (error) {
     console.error(
-      "Error sending WhatsApp message:",
-      error.response ? error.response.data : error.message
+      "❌ Error sending WhatsApp message:",
+      error.response?.data || error.message
     );
     throw error;
   }

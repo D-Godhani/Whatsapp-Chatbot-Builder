@@ -179,6 +179,45 @@ export async function processMessage({
     currentNodeId = startNode.id;
   }
 
+  //------------------------------ question - node starts-------------------------------//
+
+  if (currentNode.type === "question") {
+    const askedFlag = await redisClient.get(`${userStateKey}:asked`);
+
+    if (askedFlag) {
+      // Store user's answer
+      const variableName = currentNode.data?.properties?.variable;
+      if (variableName) {
+        await redisClient.set(
+          `${projectId}_${senderWaPhoneNo}_${variableName}`,
+          messageText,
+          "EX",
+          3600
+        );
+        console.log(`Stored variable ${variableName} = ${messageText}`);
+      }
+
+      // Go to next node
+      const nextNodeId = findNextNode(currentNode.id, fileTree.edges);
+      if (nextNodeId) {
+        await redisClient.set(userStateKey, nextNodeId, "EX", 3600);
+        await redisClient.del(`${userStateKey}:asked`); // reset
+        await executeNode(nextNodeId, {
+          projectId,
+          senderWaPhoneNo,
+          messageText,
+          fileTree,
+          userStateKey,
+        });
+      } else {
+        await redisClient.del(userStateKey);
+        console.log("No next node after question.");
+      }
+      return;
+    }
+  }
+  //------------------------------ question - node ends-------------------------------//
+
   await executeNode(currentNodeId, {
     projectId,
     senderWaPhoneNo,
@@ -270,6 +309,117 @@ async function executeNode(nodeId, context) {
       );
       await redisClient.del(`${userStateKey}:buttonInvalidCount`);
       return;
+
+      // question-node
+      case "question": {
+      const alreadyAsked = await redisClient.get(`${userStateKey}:asked`);
+      if (alreadyAsked) return; // already asked, waiting for reply
+
+      const questionText = node.data?.properties?.question || "Please reply:";
+      await sendWhatsappMessage({
+        to: context.senderWaPhoneNo,
+        type: "text",
+        text: questionText,
+        projectId: context.projectId,
+      });
+      await redisClient.set(`${userStateKey}:asked`, "true", "EX", 3600);
+      return; // pause until user replies
+    }
+
+    // api-node
+    case "api": {
+      const {
+        method,
+        url,
+        headers = {},
+        body,
+        responseKey,
+        responseType,
+        filename,
+        caption,
+        mediaType,
+      } = node.data?.properties || {};
+
+      if (!method || !url) break;
+
+      try {
+        // Extract all {{variable}} patterns from URL
+        const variableRegex = /{{(.*?)}}/g;
+        const matches = [...url.matchAll(variableRegex)];
+
+        // Replace all variables in the URL using Redis
+        let compiledUrl = url;
+        for (const match of matches) {
+          const variableName = match[1]; // e.g., "orderId"
+          const redisKey = `${context.senderWaPhoneNo}:${context.projectId}:${variableName}`;
+          const variableValue = await redisClient.get(redisKey);
+
+          if (!variableValue) {
+            throw new Error(`Missing value for variable "${variableName}"`);
+          }
+
+          compiledUrl = compiledUrl.replace(`{{${variableName}}}`, variableValue);
+        }
+
+        // Perform the API request
+        const response = await axios({
+          method,
+          url: compiledUrl,
+          headers,
+          data: body,
+        });
+
+        let result = response.data;
+
+        if (responseKey) {
+          result = response.data?.[responseKey];
+        }
+
+        // Case: Media Response
+        if (responseType === "media") {
+          if (!result) throw new Error("No media URL found in API response.");
+
+          await sendWhatsappMessage({
+            to: context.senderWaPhoneNo,
+            type: mediaType || "document",
+            content: {
+              mediaUrl: result,
+              filename: filename || "file.pdf",
+              caption: caption || "",
+            },
+            projectId: context.projectId,
+          });
+        }
+
+        // Case: Text Response
+        else {
+          await sendWhatsappMessage({
+            to: context.senderWaPhoneNo,
+            type: "text",
+            text:
+              typeof result === "object"
+                ? `API Response:\n${JSON.stringify(result, null, 2)}`
+                : `API Response: ${result}`,
+            projectId: context.projectId,
+          });
+        }
+      } catch (err) {
+        console.error("API Call Failed:", err.message);
+
+        await sendWhatsappMessage({
+          to: context.senderWaPhoneNo,
+          type: "text",
+          text: "Failed to fetch data. Please try again later.",
+          projectId: context.projectId,
+        });
+      }
+
+      // Move to the next node
+      nextNodeId = findNextNode(node.id, fileTree.edges);
+      break;
+    }
+
+//----------------------------- api-node ends ---------------------------------//
 
     case "end":
       console.log("Flow ended by end node.");
