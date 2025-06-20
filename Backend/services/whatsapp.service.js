@@ -1,13 +1,18 @@
 import axios from "axios";
 import projectModel from "../models/project.model.js";
 
-// Helper function to get project credentials securely
 async function getProjectCredentials(projectId) {
-  const project = await projectModel.findById(projectId).select(
-    "whatsappPhoneNumberId whatsappAccessToken"
-  );
-  if (!project || !project.whatsappPhoneNumberId || !project.whatsappAccessToken) {
-    throw new Error(`WhatsApp credentials not configured for project ${projectId}`);
+  const project = await projectModel
+    .findById(projectId)
+    .select("whatsappPhoneNumberId whatsappAccessToken");
+  if (
+    !project ||
+    !project.whatsappPhoneNumberId ||
+    !project.whatsappAccessToken
+  ) {
+    throw new Error(
+      `WhatsApp credentials not configured for project ${projectId}`
+    );
   }
   return {
     phoneNumberId: project.whatsappPhoneNumberId,
@@ -15,37 +20,36 @@ async function getProjectCredentials(projectId) {
   };
 }
 
-// Helper to call WhatsApp API
 async function callWhatsappAPI(phoneNumberId, accessToken, payload) {
-    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
-    try {
-        const response = await axios.post(url, payload, {
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-            },
-        });
-        console.log("WhatsApp API call successful:", response.data);
-        return response.data;
-    } catch (error) {
-        console.error("Error calling WhatsApp API:", error.response ? error.response.data : error.message);
-        throw error;
-    }
+  const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    console.log("WhatsApp API call successful:", response.data);
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Error calling WhatsApp API:",
+      error.response ? error.response.data : error.message
+    );
+    throw error;
+  }
 }
 
-/**
- * Send a WhatsApp message.
- * Automatically supports text OR button-based messages.
- *
- * @param {Object} params
- * @param {string} params.to - Receiver WhatsApp number in international format
- * @param {string} params.text - The main message body
- * @param {string} params.projectId - Project ID to fetch credentials
- * @param {string[] | Object[]} [params.buttons] - Optional array of button labels (max 3) or formatted button objects
- */
-export async function sendWhatsappMessage({ to, text, projectId, buttons = [] }) {
+export async function sendWhatsappMessage({
+  to,
+  text,
+  projectId,
+  buttons = [],
+}) {
   try {
-    const { phoneNumberId, accessToken } = await getProjectCredentials(projectId);
+    const { phoneNumberId, accessToken } = await getProjectCredentials(
+      projectId
+    );
 
     const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
 
@@ -57,7 +61,9 @@ export async function sendWhatsappMessage({ to, text, projectId, buttons = [] })
           ? buttons.slice(0, 3).map((label, index) => ({
               type: "reply",
               reply: {
-                id: `btn_${index + 1}_${label.toLowerCase().replace(/\s+/g, "_")}`,
+                id: `btn_${index + 1}_${label
+                  .toLowerCase()
+                  .replace(/\s+/g, "_")}`,
                 title: label,
               },
             }))
@@ -78,7 +84,6 @@ export async function sendWhatsappMessage({ to, text, projectId, buttons = [] })
         },
       };
     } else {
-      // ✅ Default to plain text message
       payload = {
         messaging_product: "whatsapp",
         to,
@@ -105,18 +110,24 @@ export async function sendWhatsappMessage({ to, text, projectId, buttons = [] })
   }
 }
 
-export async function sendWhatsappMediaMessage({ to, mediaUrl, mediaType, caption, projectId }) {
-    const { phoneNumberId, accessToken } = await getProjectCredentials(projectId);
+export async function sendWhatsappMediaMessage({
+  to,
+  mediaUrl,
+  mediaType,
+  caption,
+  projectId,
+}) {
+  const { phoneNumberId, accessToken } = await getProjectCredentials(projectId);
 
-    const payload = {
-        messaging_product: "whatsapp",
-        to: to,
-        type: mediaType,
-        [mediaType]: {
-            link: mediaUrl,
-            caption: caption,
-        },
-    };
+  const payload = {
+    messaging_product: "whatsapp",
+    to: to,
+    type: mediaType,
+    [mediaType]: {
+      link: mediaUrl,
+      caption: caption,
+    },
+  };
 
-    return callWhatsappAPI(phoneNumberId, accessToken, payload);
+  return callWhatsappAPI(phoneNumberId, accessToken, payload);
 }

@@ -1,7 +1,9 @@
 import projectModel from "../models/project.model.js";
-import {processMessage, handleButtonAction} from "../services/flowExecutor.service.js";
+import {
+  processMessage,
+  handleButtonAction,
+} from "../services/flowExecutor.service.js";
 
-// Webhook verification (GET /webhook)
 export const verifyWebhook = (req, res) => {
   const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN;
 
@@ -28,10 +30,16 @@ export const handleIncomingMessage = async (req, res) => {
     const message = change?.messages?.[0];
 
     if (!phoneNumberId || !message) return res.sendStatus(200);
-    
-    const project = await projectModel.findOne({ whatsappPhoneNumberId: phoneNumberId, isActive: true });
+
+    const project = await projectModel.findOne({
+      whatsappPhoneNumberId: phoneNumberId,
+      isActive: true,
+    });
     if (!project) {
-      console.warn("No active project found for phone_number_id:", phoneNumberId);
+      console.warn(
+        "No active project found for phone_number_id:",
+        phoneNumberId
+      );
       return res.sendStatus(404);
     }
 
@@ -39,30 +47,38 @@ export const handleIncomingMessage = async (req, res) => {
     const projectId = project._id;
     const fileTree = project.fileTree;
 
-    // --- ✅ THE NEW, INTELLIGENT ROUTING LOGIC ---
     if (message.type === "text") {
-      // It's a regular text message, so process it through the conversational flow.
       const text = message.text.body;
-      await processMessage({ projectId, senderWaPhoneNo: from, messageText: text, fileTree });
-
-    } else if (message.type === "interactive" && message.interactive?.type === "button_reply") {
-      // It's a button click. We need to decide what KIND of button it was.
+      await processMessage({
+        projectId,
+        senderWaPhoneNo: from,
+        messageText: text,
+        fileTree,
+      });
+    } else if (
+      message.type === "interactive" &&
+      message.interactive?.type === "button_reply"
+    ) {
       const buttonId = message.interactive.button_reply.id;
       const buttonTitle = message.interactive.button_reply.title;
-
-      // Find the button's configuration in the fileTree.
       const buttonConfig = findButtonConfig(buttonId, fileTree);
 
       if (buttonConfig?.action) {
-        // This is a "Smart" button with an embedded action. Handle it directly.
-        await handleButtonAction({ projectId, senderWaPhoneNo: from, buttonId, fileTree });
+        await handleButtonAction({
+          projectId,
+          senderWaPhoneNo: from,
+          buttonId,
+          fileTree,
+        });
       } else {
-        // This is a simple "Navigational" button. Treat its title as text input.
-        await processMessage({ projectId, senderWaPhoneNo: from, messageText: buttonTitle, fileTree });
+        await processMessage({
+          projectId,
+          senderWaPhoneNo: from,
+          messageText: buttonTitle,
+          fileTree,
+        });
       }
     }
-    // --- END OF ROUTING LOGIC ---
-
     res.sendStatus(200);
   } catch (err) {
     console.error("Error handling incoming message:", err);
@@ -70,11 +86,15 @@ export const handleIncomingMessage = async (req, res) => {
   }
 };
 
-// Helper function to find button configuration. You can place this in the same file.
 function findButtonConfig(buttonId, fileTree) {
   for (const node of fileTree.nodes) {
-    if (node.type === 'buttons' && Array.isArray(node.data?.properties?.buttons)) {
-      const foundButton = node.data.properties.buttons.find(b => b.id === buttonId);
+    if (
+      node.type === "buttons" &&
+      Array.isArray(node.data?.properties?.buttons)
+    ) {
+      const foundButton = node.data.properties.buttons.find(
+        (b) => b.id === buttonId
+      );
       if (foundButton) return foundButton;
     }
   }
