@@ -251,3 +251,35 @@ export const updateWhatsappConfig = async ({
 
   return await project.save();
 };
+
+export const toggleProjectActiveState = async ({ projectId, userId }) => {
+  if (!isValidObjectId(projectId)) throw new Error("Invalid Project ID");
+
+  const project = await projectModel.findOne({ _id: projectId, users: userId });
+
+  if (!project) {
+    throw new Error("Project not found or user not authorized");
+  }
+
+  const isActivating = !project.isActive;
+
+  if (isActivating) {
+    const existingActive = await projectModel.findOne({
+      users: userId,
+      isActive: true,
+      _id: { $ne: projectId },
+    });
+
+    if (existingActive) {
+      throw new Error("Only one project can be active at a time.");
+    }
+  }
+
+  project.isActive = isActivating;
+  const updated = await project.save();
+
+  return {
+    message: `Project ${isActivating ? "activated" : "deactivated"} successfully.`,
+    project: updated,
+  };
+};

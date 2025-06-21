@@ -226,3 +226,24 @@ export const updateWhatsappConfig = async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 };
+
+export const toggleProjectActiveState = async (req, res) => {
+  const { projectId } = req.params;
+
+  try {
+    const loggedInUser = await userModel.findOne({ email: req.user.email });
+
+    const result = await projectService.toggleProjectActiveState({
+      projectId,
+      userId: loggedInUser._id,
+    });
+
+    return res.status(200).json({
+      message: result.message,
+      project: result.project,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(400).json({ error: error.message });
+  }
+};

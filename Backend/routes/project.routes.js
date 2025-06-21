@@ -83,4 +83,12 @@ router.patch(
   projectController.updateWhatsappConfig
 );
 
+
+router.patch(
+  "/toggle-active/:projectId",
+  authMiddleWare.authUser,
+  projectController.toggleProjectActiveState
+);
+
+
 export default router;

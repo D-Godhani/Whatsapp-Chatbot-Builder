@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "../services/authService";
+import { login, googleLogin } from "../services/authService";
 import { UserContext } from "../context/user.context";
+import { GoogleLogin } from "@react-oauth/google";
+import { jwtDecode } from "jwt-decode";
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -15,18 +17,15 @@ const Login = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // If user context is already set, redirect immediately
     if (user) {
       navigate("/dashboard");
       return;
     }
-    // Or check for token in localStorage as fallback
+
     const token = localStorage.getItem("token");
     if (token) {
       setError("You are already logged in.");
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 1000);
+      setTimeout(() => navigate("/dashboard"), 1000);
     }
   }, [navigate, user]);
 
@@ -41,14 +40,45 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
     try {
       const token = await login(formData);
       localStorage.setItem("token", token);
-      setUser({ email: formData.email, isAdmin: formData.isAdmin }); // Set user context
-      window.dispatchEvent(new Event("tokenChange")); // Notify Navbar
+
+      setUser({
+        email: formData.email,
+        isAdmin: formData.isAdmin,
+      });
+
+      window.dispatchEvent(new Event("tokenChange"));
       navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Login failed");
+    }
+  };
+
+  const loginWithGoogle = async (credentialResponse) => {
+    try {
+      const idToken = credentialResponse.credential;
+      const jwtToken = await googleLogin(idToken);
+
+      localStorage.setItem("token", jwtToken);
+
+      const decoded = jwtDecode(idToken);
+      const email = decoded?.email || "GoogleUser";
+      const name = decoded?.name || "User";
+
+      setUser({
+        email,
+        name,
+        isAdmin: formData.isAdmin,
+      });
+
+      window.dispatchEvent(new Event("tokenChange"));
+      navigate("/dashboard");
+    } catch (err) {
+      console.error("Google login failed:", err.message);
+      setError("Google login failed. Please try again.");
     }
   };
 
@@ -101,22 +131,32 @@ const Login = () => {
           </label>
         </div>
 
-        <button
-          type="submit"
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
-        >
-          Sign In
-        </button>
-
-        <p className="mt-4 text-sm text-center">
-          Don’t have an account?{" "}
-          <span
-            onClick={() => navigate("/register")}
-            className="text-blue-600 cursor-pointer hover:underline"
+        <div className="flex flex-col gap-4 items-center">
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
           >
-            Register
-          </span>
-        </p>
+            Sign In
+          </button>
+
+          <GoogleLogin
+            onSuccess={loginWithGoogle}
+            onError={() => {
+              console.error("Google Login Failed");
+              setError("Google login popup failed.");
+            }}
+          />
+
+          <p className="mt-4 text-sm text-center">
+            Don’t have an account?{" "}
+            <span
+              onClick={() => navigate("/register")}
+              className="text-blue-600 cursor-pointer hover:underline"
+            >
+              Register
+            </span>
+          </p>
+        </div>
       </form>
     </div>
   );

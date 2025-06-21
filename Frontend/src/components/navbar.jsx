@@ -35,30 +35,7 @@ export default function Navbar() {
                 Dashboard
               </NavLink>
             )}
-            {/* {!isLoggedIn && (
-              <>
-                <NavLink
-                  to="/login"
-                  className={({ isActive }) =>
-                    isActive
-                      ? "text-blue-600 font-semibold"
-                      : "text-gray-600 hover:text-blue-600 transition"
-                  }
-                >
-                  Login
-                </NavLink>
-                <NavLink
-                  to="/register"
-                  className={({ isActive }) =>
-                    isActive
-                      ? "text-blue-600 font-semibold"
-                      : "text-gray-600 hover:text-blue-600 transition"
-                  }
-                >
-                  Register
-                </NavLink>
-              </>
-            )} */}
+
             {isLoggedIn && (
               <button
                 onClick={handleLogout}
