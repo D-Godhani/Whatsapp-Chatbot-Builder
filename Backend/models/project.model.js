@@ -15,6 +15,7 @@ const nodeSchema = new mongoose.Schema(
         "askaQuestion",
         // "random",
         // "goto",
+        "api",
         "end",
       ],
       required: true,

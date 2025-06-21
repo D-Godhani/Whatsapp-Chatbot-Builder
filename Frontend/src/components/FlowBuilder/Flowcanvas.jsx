@@ -34,6 +34,7 @@ function FlowCanvas({ nodes, setNodes, edges, setEdges }) {
       label: edge.data?.label || edge.label || "",
     },
   }));
+  const [error, setError] = useState("");
 
   const onNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -166,12 +167,37 @@ function FlowCanvas({ nodes, setNodes, edges, setEdges }) {
     handleCloseNodeDialog();
   };
 
+  const handleValidatedSaveNode = (updatedNode) => {
+    const type = updatedNode.type;
+    const props = updatedNode.data?.properties || {};
+  
+    if (type === "message" && (!props.message || props.message.trim() === "")) {
+      setError("Please enter the message text.");
+      return;
+    }
+    if (type === "buttons") {
+      if (!props.message || props.message.trim() === "") {
+        setError("Please enter the message text.");
+        return;
+      }
+      if (!props.buttons || props.buttons.some((b) => !b || b.trim() === "")) {
+        setError("Please enter all button labels.");
+        return;
+      }
+    }
+  
+    setError("");
+    handleSaveNode(updatedNode);
+  };
+
   const handleSaveEdge = (updatedEdge) => {
     setEdges((eds) =>
       eds.map((edge) => (edge.id === updatedEdge.id ? updatedEdge : edge))
     );
     handleCloseEdgeDialog();
   };
+
+
   useEffect(() => {
     syncVariablesFromNodes(nodes);
   }, [nodes]);
@@ -204,8 +230,10 @@ function FlowCanvas({ nodes, setNodes, edges, setEdges }) {
           node={selectedNode}
           onClose={handleCloseNodeDialog}
           onDelete={handleDeleteNode}
-          onSave={handleSaveNode}
-        />
+          onSave={handleValidatedSaveNode}
+        >
+          {error && <div className="text-red-500 mb-2">{error}</div>}
+        </BaseNodeDialog>
       )}
 
       {selectedEdge && (
